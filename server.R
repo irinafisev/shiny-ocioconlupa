@@ -1,8 +1,6 @@
-
-
 ##################################################### PREPROCESADO DE LOS DATOS 
 # Datos
-df <- read_excel("BaseDatosFinal.xlsx", 
+df_raw <- read_excel("BaseDatosFinal.xlsx", 
                  col_types = c("text", "text", "text", "date", "text", "numeric", "text", "text", "text", "numeric"))
 
 # Función que compara lo escrito en el sistema de búsqueda con la columna nombre de nuestros datos
@@ -23,10 +21,10 @@ BuscaMatch <- function(datos, palabra, recommend){
     # Creamos el df de salida:
     df_match <- datos %>% # dataframe original
         slice(encontrado) %>% # seleccionamos filas que han hecho match con el texto del usuario
-        select(1,9,6,10,11) # seleccionamos las columnas que nos interesa mostrar
+        select(9,1,6,10,11) # seleccionamos las columnas que nos interesa mostrar
     
     # Mostramos el df:
-        if (recommend == TRUE){
+    if (recommend == TRUE){
         
         # Ordenamos descendentemente por valoración y seleccionamos las columnas que nos interesen:
         df_match   %>% arrange(desc(VALORACION), PRECIO)  %>% slice(1)
@@ -46,9 +44,9 @@ BuscaMatch <- function(datos, palabra, recommend){
 
 # Función que saca la pastaña (interfaz)
 modal_dialog <- function(df) {
-
+    
     x <- "Submit Edits"
-
+    
     shiny::modalDialog(
         title = "Más información",
         div(
@@ -86,14 +84,14 @@ modal_dialog <- function(df) {
             div(
                 print(df[5])
             ),
-
+            
             
             div(
                 #class = "container",
                 div(
                     style = "margin-top: 50px;",
                     
-                   
+                    
                     shiny::actionButton(
                         inputId = "add_car",
                         label = "Introduce tu valoracion",
@@ -128,7 +126,6 @@ modal_dialog_IRI <- function(df,mpg) {
     shiny::modalDialog(
         title = "Danos tu opinion",
         div(
-            #style = "display: inline-block;",
             shiny::numericInput(inputId = "mpg",
                                 label = "Dale estrellas del 0 al 5 al plan!",
                                 value = mpg, 
@@ -169,7 +166,7 @@ create_btns <- function(x) {
 }
 
 x <- create_btns(1:828)
-df <- df %>% dplyr::bind_cols(tibble("Buttons" = x))
+df <- df_raw %>% dplyr::bind_cols(tibble("Buttons" = x))
 
 
 
@@ -181,7 +178,6 @@ shinyServer(function(input, output, session) {
     # Pulsar boton anyadir valoracion
     shiny::observeEvent(input$add_car, {
         modal_dialog_IRI(df = distinct(df),mpg="")
-        #rv$add_or_edit <- 1
     })
     
     # when final edit button is clicked, table will be changed
@@ -192,7 +188,7 @@ shinyServer(function(input, output, session) {
             
             if (rv$df[rv$dt_row, ][1]==rv$df[i,][1]){
                 
-            
+                
                 rv$edited_row <- dplyr::tibble(
                     rv$df[i, ][1],
                     rv$df[i, ][2],
@@ -208,10 +204,10 @@ shinyServer(function(input, output, session) {
                 
                 rv$df[i,] <- rv$edited_row
             }
-                
+            
         }
         
-
+        
         
         
     })
@@ -229,11 +225,7 @@ shinyServer(function(input, output, session) {
         DT::replaceData(proxy, rv$df, resetPaging = FALSE, rownames = FALSE)
         
     })
-    
-    
-    
-    
-    
+
     
     rv <- shiny::reactiveValues(
         df = distinct(df),
@@ -242,15 +234,15 @@ shinyServer(function(input, output, session) {
         edit_button = NULL,
         keep_track_id = nrow(distinct(df)) + 1
     )
-
+    
     # Sistema de filtrado ------------------------------------------------------
-
+    
     # Cambiamos tipo de actividad si cambia Categorias popus
     observeEvent(
         input$changeAvatar,{
             if (input$changeAvatar!="Todas las categorias"){
                 updateSelectInput(session, "changeAvatar1", "Tipo de actividad:", 
-                                  choices = unique(df[df$`CATEGORIAS POPULARES`==input$changeAvatar,]$`TIPO DE ACTIVIDAD`))
+                                  choices = unique(rv$df[rv$df$`CATEGORIAS POPULARES`==input$changeAvatar,]$`TIPO DE ACTIVIDAD`))
             }
             else{
                 updateSelectInput(session, "changeAvatar1", "Tipo de actividad:", 
@@ -263,29 +255,36 @@ shinyServer(function(input, output, session) {
     # Mostramos la tabla en funcion de TODOS los filtros
     observeEvent(input$filtrox,{
         if (input$changeAvatar=="Todas las categorias"){
-            
-            #df <-  df %>% filter(FECHA==input$rango & PRECIO >= input$RangoPrecios[1] & df$PRECIO <= input$RangoPrecios[2]) %>% select(1,9,2,3,6,10,11) 
-            
+            print(rv$df %>% filter(FECHA==input$rango & `CATEGORIAS POPULARES`== input$changeAvatar & PRECIO >= input$RangoPrecios[1] & df$PRECIO <= input$RangoPrecios[2]) 
+                  %>% select(9,1,6,10,11) %>%  arrange(desc(VALORACION), PRECIO) %>% slice(1)
+                  )
             
             output$recommended <- DT::renderDT(
                 {
-                    shiny::isolate(rv$df %>% filter( FECHA==input$rango & 
-                                                         `CATEGORIAS POPULARES`== input$changeAvatar & PRECIO >= input$RangoPrecios[1] & df$PRECIO <= input$RangoPrecios[2]) %>% 
-                                       select(9,1,6,10,11)%>%  arrange(desc(VALORACION), PRECIO) %>% slice(1)
-                                   )
+
+                    shiny::isolate(rv$df %>% filter(FECHA==input$rango & `CATEGORIAS POPULARES`== input$changeAvatar & PRECIO >= input$RangoPrecios[1] & df$PRECIO <= input$RangoPrecios[2]) 
+                                   %>% select(9,1,6,10,11) %>%  arrange(desc(VALORACION), PRECIO) %>% slice(1)
+                    )
                 },
                 escape = F,
                 rownames = FALSE,
-                options = list(processing = FALSE) 
-                #%>% 
-                   # formatStyle( c('NOMBRE', 'DESCRIPCION', 'IMAGEN', 'LOCALIZACION', 'PRECIO', 'VALORACION'), 
-                     #            backgroundColor ="#CDEED3" )
+                options = list(
+                    lengthChange = FALSE,
+                    initComplete = JS(
+                        "function(settings, json) {",
+                        "$(this.api().table().node()).css({'background-color': '#CDEED3'});",
+                        "}"),
+                    autowidth = TRUE,
+                    columnDefs = list(list(width = '70%', targets = 1))
+                )
             ) 
             
             output$mytable <- DT::renderDT(
                 {
-                    shiny::isolate(rv$df %>% filter(`CATEGORIAS POPULARES`== input$changeAvatar & FECHA==input$rango & PRECIO >= input$RangoPrecios[1] & df$PRECIO <= input$RangoPrecios[2]) %>% 
-                                       select(9,1,6,10,11) %>%  arrange(desc(VALORACION), PRECIO) %>% slice(-1))
+                    shiny::isolate(rv$df 
+                                   %>% filter(`CATEGORIAS POPULARES`== input$changeAvatar & FECHA==input$rango & PRECIO >= input$RangoPrecios[1] & df$PRECIO <= input$RangoPrecios[2]) 
+                                   %>%  select(9,1,6,10,11) %>%  arrange(desc(VALORACION), PRECIO) %>% slice(-1)
+                                   )
                 },
                 escape = F,
                 rownames = FALSE,
@@ -294,36 +293,42 @@ shinyServer(function(input, output, session) {
         }
         
         else {
-            #df <-  df %>% filter(`TIPO DE ACTIVIDAD`==input$changeAvatar1 & FECHA==input$rango & PRECIO >= input$RangoPrecios[1] & PRECIO <= input$RangoPrecios[2]) %>% select(1,9,2,3,6,10,11) 
-            
             output$recommended <- DT::renderDT(
                 {
                     shiny::isolate(rv$df %>% 
-        filter(`TIPO DE ACTIVIDAD`==input$changeAvatar1 &
-                   `CATEGORIAS POPULARES`== input$changeAvatar &
-                   FECHA==input$rango & 
-                   PRECIO >= input$RangoPrecios[1] & 
-                   PRECIO <= input$RangoPrecios[2]) %>%
-            select(9,1,6,10,11) %>%  
-            arrange(desc(VALORACION), PRECIO) %>% 
-            slice(1))
+                                       filter(`TIPO DE ACTIVIDAD`==input$changeAvatar1 &
+                                                  `CATEGORIAS POPULARES`== input$changeAvatar &
+                                                  FECHA==input$rango & 
+                                                  PRECIO >= input$RangoPrecios[1] & 
+                                                  PRECIO <= input$RangoPrecios[2]) %>%
+                                       select(9,1,6,10,11) %>%  
+                                       arrange(desc(VALORACION), PRECIO) %>% 
+                                       slice(1))
                 },
                 escape = F,
                 rownames = FALSE,
-                options = list(processing = FALSE)
+                options = list(
+                    lengthChange = FALSE,
+                    initComplete = JS(
+                        "function(settings, json) {",
+                        "$(this.api().table().node()).css({'background-color': '#CDEED3'});",
+                        "}"),
+                    autowidth = TRUE,
+                    columnDefs = list(list(width = '70%', targets = 1))
+                )
             )
             
             output$mytable <- DT::renderDT(
                 {
                     shiny::isolate(rv$df %>% 
-         filter(`TIPO DE ACTIVIDAD`==input$changeAvatar1 & 
-                    `CATEGORIAS POPULARES`== input$changeAvatar &
-                    FECHA==input$rango & 
-                    PRECIO >= input$RangoPrecios[1] &
-                    PRECIO <= input$RangoPrecios[2]) %>% 
-             select(9,1,6,10,11) %>% 
-             arrange(desc(VALORACION), PRECIO) %>% 
-             slice(-1))
+                                       filter(`TIPO DE ACTIVIDAD`==input$changeAvatar1 & 
+                                                  `CATEGORIAS POPULARES`== input$changeAvatar &
+                                                  FECHA==input$rango & 
+                                                  PRECIO >= input$RangoPrecios[1] &
+                                                  PRECIO <= input$RangoPrecios[2]) %>% 
+                                       select(9,1,6,10,11) %>% 
+                                       arrange(desc(VALORACION), PRECIO) %>% 
+                                       slice(-1))
                 },
                 escape = F,
                 rownames = FALSE,
@@ -343,27 +348,34 @@ shinyServer(function(input, output, session) {
         modal_dialog(df=df)
         #rv$add_or_edit <- NULL
     })
-    # Sistema de búsqueda -----------------------------------------------------
     
+    # Sistema de búsqueda -----------------------------------------------------
     #Esto es para la tabla principal sin haber usado el boton de la lupa
     output$recommended <- DT::renderDataTable({
         shiny::isolate(BuscaMatch(rv$df, input$userName,  TRUE) )
     },
     escape = F,
     rownames = FALSE,
-    options = list(processing = FALSE)
-        ) 
+    options = list(
+        lengthChange = FALSE,
+        initComplete = JS(
+            "function(settings, json) {",
+            "$(this.api().table().node()).css({'background-color': '#CDEED3'});",
+            "}"),
+        autowidth = TRUE,
+        columnDefs = list(list(width = '70%', targets = 1))
+    )
+    ) 
     
     output$mytable <- DT::renderDataTable(
         {
-        shiny::isolate(BuscaMatch(rv$df, input$userName, FALSE))
+            shiny::isolate(BuscaMatch(rv$df, input$userName, FALSE))
         }, 
         escape = F,
         rownames = FALSE,
         options = list(processing = FALSE)
-           ) 
-        #DT::datatable(BuscaMatch(df, input$userName, input$searchButton, FALSE),escape=FALSE) })
-
+    ) 
+    
     # Esto es para mostrar las tablas si el botón ha sido usado
     observeEvent(input$searchButton,{
         output$recommended <- DT::renderDataTable({
@@ -371,7 +383,15 @@ shinyServer(function(input, output, session) {
         },
         escape = F,
         rownames = FALSE,
-        options = list(processing = FALSE)
+        options = list(
+            lengthChange = FALSE,
+            initComplete = JS(
+                "function(settings, json) {",
+                "$(this.api().table().node()).css({'background-color': '#CDEED3'});",
+                "}"),
+            autowidth = TRUE,
+            columnDefs = list(list(width = '70%', targets = 1))
+        )
         ) 
         
         output$mytable <- DT::renderDataTable(
@@ -398,7 +418,7 @@ shinyServer(function(input, output, session) {
                                                  "skipLabel"="Exit"))
     )
     
-
+    
     
     # Initialize a variable to count how many times "btn1" is clicked.
     values <- reactiveValues(data = 1) 
@@ -495,11 +515,10 @@ shinyServer(function(input, output, session) {
     observe(c(hide("respuesta1.1"),
               hide("respuesta1.2"),
               hide("respuesta1.3"),
-              hide("respuesta1.4"),
               hide("respuesta2.1"),
               hide("respuesta2.2"),
               hide("respuesta2.3")
-              ))
+    ))
     
     # Mostramos las respuestas sobre página web 
     observeEvent(input$pregunta1.1, {
@@ -510,9 +529,6 @@ shinyServer(function(input, output, session) {
     })
     observeEvent(input$pregunta1.3, {
         shinyjs::toggle("respuesta1.3", anim = TRUE)
-    })
-    observeEvent(input$pregunta1.4, {
-        shinyjs::toggle("respuesta1.4", anim = TRUE)
     })
     observeEvent(input$pregunta2.1, {
         shinyjs::toggle("respuesta2.1", anim = TRUE)
@@ -541,13 +557,6 @@ shinyServer(function(input, output, session) {
         } 
     })
     
-    # Reset Button -------------------------------------------------------------
-    # useShinyjs()
-    # observeEvent( input$resetBtn, {
-    #     values$data = 1
-    #     shinyjs::enable("btn1")
-    #     selections <- vector(mode = "character", length = 0)
-    # })
     
     # Search NeoGov ------------------------------------------------------------
     link <- eventReactive(input$searchTerm, {
@@ -571,21 +580,10 @@ shinyServer(function(input, output, session) {
         )
     })
     
-    # Select Input (First Job) -------------------------------------------------
-    # output$select1 <- renderUI({
-    #     selectizeInput("item_name", label = "",
-    #                    choices = item_ref$TitleLong,
-    #                    width = "100%",
-    #                    options = list(
-    #                        placeholder = 'Start your path by choosing from one of our jobs.',
-    #                        onInitialize = I('function() { this.setValue(""); }'))
-    #     )
-    # })
     
     # Table Inputs (Next 2-5 Selections) ---------------------------------------
     
     # Table 1 (Step 2)
-    # eventReactive( input$item_name,
     top1 <- reactive({
         
         top <- dplyr::filter(item_pairs(), Item1Name == input$item_name) %>%
@@ -607,23 +605,15 @@ shinyServer(function(input, output, session) {
                                  $(header[i]).attr('title', tips[i]);
                                  }
                                  ")
-                   ) %>%
+        ) %>%
             formatCurrency('SalaryDiff') %>% 
             formatPercentage('Prob', 1) %>%
             formatCurrency("Salary2Min")
     })
     
-    # outputOptions(output, "select2", suspendWhenHidden = FALSE)
     
     proxy1 = dataTableProxy('select2')
     
-    # observeEvent(input$goBack, {
-    #     proxy1 <- proxy1 %>% selectRows(NULL)
-    #     # values$data <- values$data - 1
-    # })
-    
-    # Table 2 (Step 3)
-    # eventReactive( input$select2_cell_clicked, 
     top2 <- reactive({
         
         itemName <- top1()[ input$select2_rows_selected,  "Item2Name"]
@@ -648,20 +638,13 @@ shinyServer(function(input, output, session) {
                                  $(header[i]).attr('title', tips[i]);
                                  }
                                  ")
-                   ) %>%
+        ) %>%
             formatCurrency('SalaryDiff') %>% 
             formatPercentage('Prob', 1) %>%
             formatCurrency("Salary2Min")
     })
     
-    # outputOptions(output, "select3", suspendWhenHidden = FALSE)
-    
     proxy2 = dataTableProxy('select3')
-    
-    # observeEvent(input$goBack, {
-    #     proxy2 %>% selectRows(NULL)
-    #     # values$data <- values$data - 1
-    # })
     
     # Table 3 (Step 4)
     top3 <- reactive({
@@ -688,22 +671,14 @@ shinyServer(function(input, output, session) {
                                  $(header[i]).attr('title', tips[i]);
                                  }
                                  ")
-                   ) %>%
+        ) %>%
             formatCurrency('SalaryDiff') %>% 
             formatPercentage('Prob', 1) %>%
             formatCurrency("Salary2Min")
     })
     
-    # outputOptions(output, "select4", suspendWhenHidden = FALSE)
-    
     proxy3 = dataTableProxy('select4')
     
-    # observeEvent(input$goBack, {
-    #     proxy3 %>% selectRows(NULL)
-    #     # values$data <- values$data - 1
-    # })
-    
-    # Table 4 (Step 5)
     top4 <- reactive({
         
         itemName <- top3()[ input$select4_rows_selected,  "Item2Name"]
@@ -728,20 +703,14 @@ shinyServer(function(input, output, session) {
                                  $(header[i]).attr('title', tips[i]);
                                  }
                                  ")
-                   ) %>%
+        ) %>%
             formatCurrency('SalaryDiff') %>% 
             formatPercentage('Prob', 1) %>%
             formatCurrency("Salary2Min")
     })
     
-    # outputOptions(output, "select5", suspendWhenHidden = FALSE)
     
     proxy4 = dataTableProxy('select5')
-    
-    # observeEvent(input$goBack, {
-    #     proxy4 <- proxy4 %>% selectRows(NULL)
-    #     # values$data <- values$data - 1
-    # })
     
     # User name ----------------------------------------------------------------
     plotTitle <- reactive({
@@ -929,102 +898,6 @@ shinyServer(function(input, output, session) {
         v
     })
     
-    # output$printInput4 <- renderUI({
-    #     
-    #     # Display if item is selected
-    #     if( is.null(input$select4_rows_selected) ){
-    #         return()
-    #     } else {
-    #         div(class="panel panel-default",
-    #             div(class="panel-body",
-    #                 div(tags$img(src = "four.svg", width = "25px", height = "25px"), tags$h6( paste0(job_4_data()[1], " (", job_4_data()[2], ")") ),
-    #                     paste0( job_4_data()[3], " - ", job_4_data()[4], " /month"), 
-    #                     div(paste0(job_4_data()[5], " incumbents"))
-    #                 )
-    #             ))
-    #     }
-    # })
-    # 
-    # label_4 <- reactive({
-    #     try(
-    #         paste0( job_4_data()[1], "\n",
-    #                 job_4_data()[3], " - ", job_4_data()[4], " Monthly", "\n",
-    #                 job_4_data()[6], " Popularity", " | ", job_4_data()[5], " Incumbents"),
-    #         TRUE
-    #     )
-    #     
-    # })
-    # 
-    # job_5_data <- reactive({
-    #     # Obtain stats
-    #     itemName <- top4()[ input$select5_rows_selected,  "Item2Name"]
-    #     itemNo <- top4()[ input$select5_rows_selected,  "Item2"]
-    #     salaryMin <- top4()[ input$select5_rows_selected,  "Salary2Min"] 
-    #     salaryMax <- item_ref[ which( itemName == item_ref$TitleLong ), "SalaryMax" ]
-    #     incumb <- top4()[ input$select5_rows_selected,  "Incumbents"]
-    #     prob <- top4()[ input$select5_rows_selected,  "Prob"]
-    #     
-    #     salaryMax <- format(salaryMax, big.mark = ",")
-    #     salaryMax <- paste0("$", salaryMax)
-    #     
-    #     salaryMin <- format(salaryMin, big.mark = ",")
-    #     salaryMin <- paste0("$", salaryMin)
-    #     
-    #     prob <- paste0( round( prob*100, 1 ), "%" )
-    #     
-    #     v <- c(itemName, itemNo, salaryMin, salaryMax, incumb, prob)
-    #     
-    #     v
-    # })
-    # 
-    # output$printInput5 <- renderUI({
-    #     
-    #     # Display if item is selected
-    #     if( is.null(input$select5_rows_selected) ){
-    #         return()
-    #     } else {
-    #         div(class="panel panel-default",
-    #             div(class="panel-body",
-    #                 div(tags$img(src = "five.svg", width = "25px", height = "25px"), tags$h6( paste0(job_5_data()[1], " (", job_5_data()[2], ")") ),
-    #                     paste0( job_5_data()[3], " - ", job_5_data()[4], " /month"), 
-    #                     div(paste0(job_5_data()[5], " incumbents"))
-    #                 )
-    #             ))
-    #     }
-    # })
-    # 
-    # label_5 <- reactive({
-    #     
-    #     try(
-    #         paste0( job_5_data()[1], "\n",
-    #                 job_5_data()[3], " - ", job_5_data()[4], " Monthly", "\n",
-    #                 job_5_data()[6], " Popularity", " | ", job_5_data()[5], " Incumbents"),
-    #         TRUE
-    #     )
-    # })
-    # 
-    # Visualization ------------------------------------------------------------
-    
-    # # Avatar to use in the visualization
-    # avatar <- reactive({
-    #     switch(input$changeAvatar,
-    #            # "traveler" = "f21d",  # not compatible with new FA
-    #            "map-marker" = "f041",
-    #            "rocket" = "f135",
-    #            # "paper-plane" = "f1d8",  # not compatible with new FA
-    #            "leaf" = "f06c")
-    # })
-    # 
-    # colorIcon <- reactive({
-    #     # Automatically change avatar color based on avatar selection
-    #     switch(input$changeAvatar,
-    #            "traveler" = "#0c84e4",      # Blue
-    #            "map-marker" = "#000000",  # Black
-    #            "rocket" = "#f44141",      # Red
-    #            "paper-plane" = "#663096", # Purple  deeper purple --> #663096
-    #            "leaf" = "#10d13a"         # Green
-    #     )
-    # })
     
     tip1 <- reactive({
         paste0( "<h6>", job_1_data()[1], "</h6>")
@@ -1044,8 +917,6 @@ shinyServer(function(input, output, session) {
                              c(item_name1, item_name2, item_name3,
                                item_name4, item_name5))
         
-        # tips <- append(tips,
-        #                c(tip1(), tip2(), tip3(), tip4(), tip5() ))
         
         # Insert line breaks where there's more than 2 words in a title
         selections <- sapply(selections, make_breaks, simplify = "array", USE.NAMES = FALSE)
@@ -1053,8 +924,6 @@ shinyServer(function(input, output, session) {
         # Add selections to data.frame
         nodes[1:length(selections),2] <- selections
         
-        # # Add tips to data.frame
-        # nodes[1:length(tips), 3] <- tips
         
         # Add id
         nodes$id <- 1:length(selections)
@@ -1063,11 +932,7 @@ shinyServer(function(input, output, session) {
         nodes$shape <- rep("icon", length(selections))
         nodes$icon.face <- rep('fontAwesome', length(selections))
         nodes$icon.code <- rep(avatar(), length(selections))
-        # nodes$color <- rep(colorIcon(), length(selections))  
-        # Color is now added via icon options in visNodes()
         
-        # Add shadow
-        # nodes$shadow <- TRUE
         
         # Keep only the rows that don't have errors
         nodes <- nodes[grep("Error", nodes$label, invert = TRUE),]
@@ -1077,17 +942,6 @@ shinyServer(function(input, output, session) {
         
     })
     
-    # visEdge <- reactive({
-    #     
-    #     num_selections <- nrow( visNode() )
-    #     
-    #     if ( num_selections > 0)
-    #         for ( i in 1:(num_selections-1) ) {
-    #             edges[i, ] <- c( i, i+1, 200)
-    #         }
-    #     
-    #     edges
-    # })
     
     # Under Development - Adding popularity percentage to edge label 
     edgeLab <- reactive({
@@ -1202,27 +1056,8 @@ shinyServer(function(input, output, session) {
         }
     })
     
-    # PDF Report
-    # plotInput <- reactive({
-    #     
-    #     if(input$returnpdf){
-    #         
-    #         pdf("./www/Career_Path_Report.pdf", width=as.numeric(8), height=as.numeric(11))
-    #         plot(cars, type = "n", axes = F, xlab = "", ylab = "")
-    #         lim <- par()
-    #         
-    #         rasterImage( template(), lim$usr[1], lim$usr[3], lim$usr[2], lim$usr[4] )
-    #         
-    #         plot_labels()
-    #         
-    #         dev.off()
-    #     }
-    #     
-    #     plot(rnorm(sample(100:200,1)), type = "n", axes = F, xlab = "", ylab = "")  
-    #     # This is a 'decoy' plot that needs to render
-    #     
-    # })
-    # 
+    
+    
     # This plots the blank 'decoy' plot
     # Progress bar is based on the computation time of this plot
     output$myplot <- renderPlot({ 
@@ -1245,6 +1080,15 @@ shinyServer(function(input, output, session) {
         })
     })
     
+    output$myplot3 <- renderPlot({ 
+        withProgress(message = 'Building your report', {
+            
+            plotInput()
+            
+            incProgress(detail = "Putting on the finishing touches...", amount = 0.5)
+            
+        })
+    })
     output$pdflink <- downloadHandler(
         filename <- "my-career.pdf",
         content <- function(file) {
@@ -1295,23 +1139,12 @@ shinyServer(function(input, output, session) {
                             shiny::removeModal()
                         })
     
-    shiny::observeEvent(input$dismiss_modal1,
-                        {
-                            shiny::removeModal()
-                        })
-    
     shiny::observeEvent(input$final_edit, {
         shiny::removeModal()
         
     })
     
-    shiny::observeEvent(input$window, {
-        shiny::removeModal()
-        
-    })
     
-    ######################## CHATBOT CECIIII !!!!!!!!!!!!!!!
-      
     responses1 <- interviewer::buildResponses(
         id = c("a", "b", "c"),
         label = c("Culturales o que aporten conocimiento", 
@@ -1343,10 +1176,13 @@ shinyServer(function(input, output, session) {
     
     output$Personalizado <-
         interviewer::questionnaire(
-            label = "Chatbot",
+            label = actionLink("chatbot", shiny::HTML("<h7>Chatbot</h7>"), width = 100,icon = icon("robot", class = "fa-2x")),
+            
             welcome = list(
-                shiny::p("Bienvenido!") #,
-                #shiny::HTML("<p>This demo shows how <strong>loops</strong> can be defined in <strong>interviewer</strong>.</p>")
+                shiny::HTML("<h4>¡Bienvenido!</h4>"),
+                shiny::HTML("<h5>Aquí te ayudaremos a elegir las mejores actividades para ti según tus preferencias a partir de un cuestionario.</h5>"),
+                # Espacio
+                shiny::HTML("<h5>Para comenzar, pulsa 'START'</h5>")
             ),
             
             interviewer::question.single(
@@ -1354,8 +1190,6 @@ shinyServer(function(input, output, session) {
                 label = "Te suelen interesar las actividades...",
                 responses = responses1
             ),
-            
-            
             
             interviewer::pageBreak(),
             
@@ -1388,7 +1222,7 @@ shinyServer(function(input, output, session) {
                 if ((data$LoopSource1 == 'a' & data$LoopSource3 == 'a' & data$LoopSource4 == 'a') |
                     (data$LoopSource1 == 'a' & data$LoopSource3 == 'a' & data$LoopSource4 == 'b') |
                     (data$LoopSource1 == 'a' & data$LoopSource3 == 'a' & data$LoopSource4 == 'c') ) 
-                    {
+                {
                     output$tabla_chatbot <- DT::renderDT(
                         {
                             # Museo militar, Museo BA
@@ -1401,7 +1235,7 @@ shinyServer(function(input, output, session) {
                         options = list(processing = FALSE) 
                     )}
                 
-                    
+                
                 
                 else if ((data$LoopSource1 == 'a' & data$LoopSource3 == 'b' & data$LoopSource4 == 'a') | 
                          (data$LoopSource1 == 'a' & data$LoopSource3 == 'b' & data$LoopSource4 == 'b') |
@@ -1516,14 +1350,14 @@ shinyServer(function(input, output, session) {
                         {
                             
                             # Parque, embalse, jardines, albufera
-                             shiny::isolate( rbind(BuscaMatch(df, "Parque Gulliver", FALSE),
-                                                   BuscaMatch(df, "Parque Reina Sofia", FALSE),
-                                                   BuscaMatch(df, "Parque Natural de la Murta", FALSE),
-                                                   BuscaMatch(df, "Embalse de Tous", FALSE),
-                                                   BuscaMatch(df, "Parque de Cabacera", FALSE),
-                                                   BuscaMatch(df, "Jardines del Real", FALSE),
-                                                   BuscaMatch(df, "Excursión a La Albufera", FALSE)) %>% 
-                                                 arrange(desc(VALORACION), PRECIO))
+                            shiny::isolate( rbind(BuscaMatch(df, "Parque Gulliver", FALSE),
+                                                  BuscaMatch(df, "Parque Reina Sofia", FALSE),
+                                                  BuscaMatch(df, "Parque Natural de la Murta", FALSE),
+                                                  BuscaMatch(df, "Embalse de Tous", FALSE),
+                                                  BuscaMatch(df, "Parque de Cabacera", FALSE),
+                                                  BuscaMatch(df, "Jardines del Real", FALSE),
+                                                  BuscaMatch(df, "Excursión a La Albufera", FALSE)) %>% 
+                                                arrange(desc(VALORACION), PRECIO))
                         },
                         escape = F,
                         rownames = FALSE,
@@ -1597,7 +1431,7 @@ shinyServer(function(input, output, session) {
                 {
                     output$tabla_chatbot <- DT::renderDT(
                         {
-                           
+                            
                             
                             # Parque, embalse, jardines, recorrido, bioparc, palacio, oceanografic
                             shiny::isolate( rbind(BuscaMatch(df, "Parque Gulliver", FALSE),
@@ -1623,7 +1457,7 @@ shinyServer(function(input, output, session) {
                 {
                     output$tabla_chatbot <- DT::renderDT(
                         {
-                           
+                            
                             # Parque, embalse, jardines, palacio, albufera, museo BA, Escape
                             shiny::isolate( rbind(BuscaMatch(df, "Parque Gulliver", FALSE),
                                                   BuscaMatch(df, "Parque Reina Sofia", FALSE),
@@ -1650,7 +1484,5 @@ shinyServer(function(input, output, session) {
             
             
         ) # cerramos cuestionario
-    
-    
-    
 })
+
